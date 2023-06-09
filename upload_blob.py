@@ -54,7 +54,7 @@ async def send_event_data():
                 print('Events all sent')
                 await producer.close()
             else:
-                print("no json files found")
+                print("failed")
 
     except Exception as e:
         print(e)

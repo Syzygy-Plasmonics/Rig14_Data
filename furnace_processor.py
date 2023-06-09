@@ -26,7 +26,7 @@ def determineStep(gasSelection:str, catalystBedAvg:float, heaterSetpointDiff=0):
 
 def findDataStart(fileLines:list):
     """
-    input: fileLinse -> a list of strings representing the lines in the file
+    input: fileLines -> a list of strings representing the lines in the file
     output: an integer of the index at which to start parsing data; returns -1 if no line was found
     description: iterates through each line in fileLines, looking for the string 'Date and time'
     """
@@ -62,8 +62,8 @@ def createDataframe(fileName:str,furnaceLetter:str,lines:list):
     }
 
     startIdx = findDataStart(lines)
-    if startIdx == -1: return None
-    furnaceDf = pd.read_csv(fileName, skiprows=findDataStart(startIdx), sep="\,|\t", engine='python', parse_dates=[1], date_format = '%m/%d/%Y %I:%M:%S %p', on_bad_lines='error' )
+    if startIdx == -1: return pd.DataFrame
+    furnaceDf = pd.read_csv(fileName, skiprows=startIdx, sep="\,|\t", engine='python', parse_dates=[1], date_format = '%m/%d/%Y %I:%M:%S %p', on_bad_lines='error' )
         
     furnaceDf.columns=furnaceDf.columns.str.replace(' ','')
     furnaceDf = furnaceDf[furnaceColumns[furnaceLetter]]    
@@ -115,7 +115,7 @@ def furnaceFileAnalyzer(fileName:str):
             return "unknown", fileName
         
         # means the start index in the raw data was not found (see findDataStart)
-        if not furnaceDf:
+        if furnaceDf.empty:
             return "error", fileName
 
         for temp in furnaceTemps:
@@ -171,7 +171,7 @@ if not os.path.exists("furnace_data"):
 # runs through each file, creates dataframe, then deletes file 
 for file in furnaceFiles:
     furnaceType,furnaceDf = furnaceFileAnalyzer(file)
-    os.remove(file)
+    #os.remove(file)
     furnaceData[furnaceType].append(furnaceDf)
 
 # creates master dataframe, then chunks data using the chunkDfJson function
