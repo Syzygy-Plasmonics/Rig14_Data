@@ -3,12 +3,17 @@ import pandas as pd
 from pandas.api.types import is_numeric_dtype
 import numpy as np
 from glob import glob
+from upload_blob import *
 
 rootPath = "C:\\temp\\testdownload\\"
 
-def determineStep(gasSelection:str, catalystBedAvg:str, heaterSetpointDiff=0):
+def determineStep(gasSelection:str, catalystBedAvg:float, heaterSetpointDiff=0):
     """
-    classifies the experiment step based on ranges and variables according to Robert's logic
+    input: gasSelection -> a string of the gas selection that was in the raw data
+           catalystBedAvg -> a float of the catalyst bed average 
+           heaterSetpointDiff -> a float of the heater setpoint difference
+    output: a string categorizing the stage of which the reactor is in at that date-time
+    description: uses the given input to determine the classification of the data
     """
     # classifies experiment step based on values
     if gasSelection=="Air" and catalystBedAvg>=699 or heaterSetpointDiff==0 : return "Calcination" 
@@ -21,15 +26,21 @@ def determineStep(gasSelection:str, catalystBedAvg:str, heaterSetpointDiff=0):
 
 def findDataStart(fileLines:list):
     """
-    given a list representing a raw data file, finds the row at which the data begins
+    input: fileLinse -> a list of strings representing the lines in the file
+    output: an integer of the index at which to start parsing data; returns -1 if no line was found
+    description: iterates through each line in fileLines, looking for the string 'Date and time'
     """
     for idx, line in enumerate(fileLines):
         if 'Date and time' in line : return idx
     return -1
 
-def createDataframe(fileName:str,furnaceLetter:str,lines:str):
+def createDataframe(fileName:str,furnaceLetter:str,lines:list):
     """
-    returns dataframe based on type of furnace data passed in
+    input: fileName -> the name and absolute directory of the given file to convert to a dataframe
+           furnaceLetter -> a string representing the type of furnace (A/B/C)
+           lines -> a list of strings representing each line in the file
+    output: a raw dataframe with the chosen columns from each rig
+    description: converts the raw data to a dataframe for furnaceFileAnalyzer to run calculations on and manipulate
     """
 
     # declare only needed columns
@@ -50,7 +61,9 @@ def createDataframe(fileName:str,furnaceLetter:str,lines:str):
             'Comment']
     }
 
-    furnaceDf = pd.read_csv(fileName, skiprows=findDataStart(lines), sep="\,|\t", engine='python', parse_dates=[1], date_format = '%m/%d/%Y %I:%M:%S %p', on_bad_lines='error' )
+    startIdx = findDataStart(lines)
+    if startIdx == -1: return None
+    furnaceDf = pd.read_csv(fileName, skiprows=findDataStart(startIdx), sep="\,|\t", engine='python', parse_dates=[1], date_format = '%m/%d/%Y %I:%M:%S %p', on_bad_lines='error' )
         
     furnaceDf.columns=furnaceDf.columns.str.replace(' ','')
     furnaceDf = furnaceDf[furnaceColumns[furnaceLetter]]    
@@ -61,7 +74,9 @@ def createDataframe(fileName:str,furnaceLetter:str,lines:str):
 
 def furnaceFileAnalyzer(fileName:str):
     """
-    parses a file and converts to a dataframe in standarized column format with added identifiers and calculated values
+    input: fileName -> a string representing the filename to convert to a dataframe, should be passed with absolute path
+    output: a string classifying the output dataframe, and the appropriate dataframe; if the file is unidentified or has messed up data, returns the name of the file
+    description: uses the createDataFrame function and outputs a cleaned and formatted dataframe with calculated and assigned values
     """    
     try:
         with open(fileName,'r') as tempF:
@@ -71,9 +86,7 @@ def furnaceFileAnalyzer(fileName:str):
 
         if not lines : return "unknown", fileName
 
-        # Needs to check if rig is A/B or C/Saturn
-
-        # Rig C or Saturn
+        # Rig C
         if "Rig14-CD" in lines[0]:
             furnaceType="Furnace 14C"
 
@@ -101,6 +114,10 @@ def furnaceFileAnalyzer(fileName:str):
         else:
             return "unknown", fileName
         
+        # means the start index in the raw data was not found (see findDataStart)
+        if not furnaceDf:
+            return "error", fileName
+
         for temp in furnaceTemps:
             if is_numeric_dtype(furnaceDf[temp]) : furnaceDf[temp] = np.where(furnaceDf[temp]>=1300,np.nan,furnaceDf[temp])
         furnaceDf['furnace_type'] = furnaceType
@@ -121,10 +138,12 @@ def furnaceFileAnalyzer(fileName:str):
         return "error", fileName
 
 
-
-
 # chunks dataframe into 1000 line json
 def chunkDfJson(df:pd.DataFrame,fileName:str):
+    """
+    breaks up dataframes into 1000 line json files due to the data surpassing the given max byte size for events
+    naming convention: furnaceX_#.json
+    """
     i=0
     j=1000
     while j < len(df)+1000:
@@ -133,7 +152,7 @@ def chunkDfJson(df:pd.DataFrame,fileName:str):
         j+=1000
 
 
-
+# grabs raw data from directory
 furnaceFiles = glob(rootPath+"*[!zip]")
 
 furnaceData = {
@@ -144,14 +163,17 @@ furnaceData = {
     "error" : []
 }
 
+# makes output folder
 if not os.path.exists("furnace_data"):
     os.mkdir("furnace_data")
 
+# runs through each file and creates dataframe
 for file in furnaceFiles:
     furnaceType,furnaceDf = furnaceFileAnalyzer(file)
     # os.remove(file)
     furnaceData[furnaceType].append(furnaceDf)
 
+# creates master dataframe, then chunks data using the chunkDfJson function
 if len(furnaceData['Furnace 14A']) > 0:
     masterFurnaceA = pd.concat(furnaceData['Furnace 14A'],ignore_index=True)
     # masterFurnaceA.to_json("furnace_data/furnaceA.json",mode='w',orient='records')
@@ -170,4 +192,5 @@ if len(furnaceData['Furnace 14C']) > 0:
     # masterFurnaceC.to_json("furnace_data/furnaceC.json",mode='w',index=False,header=True)
 
 
-
+# sends json files to event hub after processing raw data
+asyncio.run(send_event_data())
