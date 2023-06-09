@@ -141,8 +141,9 @@ def furnaceFileAnalyzer(fileName:str):
 # chunks dataframe into 1000 line json
 def chunkDfJson(df:pd.DataFrame,fileName:str):
     """
-    breaks up dataframes into 1000 line json files due to the data surpassing the given max byte size for events
-    naming convention: furnaceX_#.json
+    input: df -> a pandas dataframe to chunk
+    output: none
+    description: breaks up dataframes into 1000 line json files and saves due as the data surpasses the given max byte size for events. naming convention: furnaceX_#.json
     """
     i=0
     j=1000
