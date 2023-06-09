@@ -168,10 +168,10 @@ furnaceData = {
 if not os.path.exists("furnace_data"):
     os.mkdir("furnace_data")
 
-# runs through each file and creates dataframe
+# runs through each file, creates dataframe, then deletes file 
 for file in furnaceFiles:
     furnaceType,furnaceDf = furnaceFileAnalyzer(file)
-    # os.remove(file)
+    os.remove(file)
     furnaceData[furnaceType].append(furnaceDf)
 
 # creates master dataframe, then chunks data using the chunkDfJson function
