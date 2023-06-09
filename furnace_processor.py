@@ -54,11 +54,17 @@ def createDataframe(fileName:str,furnaceLetter:str,lines:list):
                    'MFC2_TC', 'MFC2_VCCM', 'MFC2_MCCM',
                     'H2GasDetector-furnaceB','ExhaustFlowRate(ft/min)', 'HeaterVoltage', 'GasSelection','HeaterSetpoint',
                    'Comment'] ,
-    "C" : ['Dateandtime', 'Elapsedtime', 'TC0_1_C1', 'TC1_1_C2', 'TC2_1_C3',
+    "C_1" : ['Dateandtime', 'Elapsedtime', 'TC0_1_C1', 'TC1_1_C2', 'TC2_1_C3',
             'TC3_1_C4', 'TC4_1_C5', 'TC5_1', 'MFC3_PSIA', 'MFC3_TC', 'MFC3_VCCM', 'MFC3_MCCM',
             'H2GasDetector-furnaceA', 'H2GasDetector-furnaceB',
             'ExhaustFlowRate(ft/min)', 'HeaterVoltage', 'GasSelection',
-            'Comment']
+            'Comment'],
+    "C_2" : ['Dateandtime', 'Elapsedtime', 'TC0_1_C1', 'TC1_1_C2', 'TC2_1_C3',
+               'TC3_1_C4', 'TC4_1_C5', 'TC5_1', 'MFC3_PSIA', 'MFC3_TC', 'MFC3_VCCM', 'MFC3_MCCM',
+               'H2GasDetector-furnaceA', 'H2GasDetector-furnaceB',
+               'ExhaustFlowRate(ft/min)', 'HeaterVoltage', 'GasSelection',
+               'Comment','ZoneTemperature_1','ZoneTemperature_2','ZoneTemperature_3',
+                'ZoneSetpoint_1','ZoneSetpoint_2','ZoneSetpoint_3','ZoneOutput_1','ZoneOutput_2','ZoneOutput_3']
     }
 
     startIdx = findDataStart(lines)
@@ -66,9 +72,17 @@ def createDataframe(fileName:str,furnaceLetter:str,lines:list):
     furnaceDf = pd.read_csv(fileName, skiprows=startIdx, sep="\,|\t", engine='python', parse_dates=[1], date_format = '%m/%d/%Y %I:%M:%S %p', on_bad_lines='error' )
         
     furnaceDf.columns=furnaceDf.columns.str.replace(' ','')
-    furnaceDf = furnaceDf[furnaceColumns[furnaceLetter]]    
 
-    return furnaceDf
+    try:
+        if furnaceLetter=='C':
+            furnaceDf = furnaceDf[furnaceColumns[furnaceLetter+"_2"]] if "ZoneTemperature_1" in furnaceDf.columns else furnaceDf[furnaceColumns[furnaceLetter+"_1"]]
+        else:
+            furnaceDf = furnaceDf[furnaceColumns[furnaceLetter]]    
+
+        return furnaceDf
+    except Exception as e:
+        print(e)
+        return pd.DataFrame
 
 
 
@@ -95,7 +109,7 @@ def furnaceFileAnalyzer(fileName:str):
             furnaceTemps = ['TC0_1_C1', 'TC1_1_C2','TC3_1_C4', 'TC4_1_C5']
 
         # Rig A or B
-        elif "Rig-14" in lines[0]:
+        elif "Rig-14" in lines[0] or "Rig-14AB" in lines[0]:
             if "Rig 14A" in lines[12]:
                 furnaceDf = createDataframe(fileName,"A",lines)
                 furnaceType="Furnace 14A"
@@ -171,7 +185,7 @@ if not os.path.exists("furnace_data"):
 # runs through each file, creates dataframe, then deletes file 
 for file in furnaceFiles:
     furnaceType,furnaceDf = furnaceFileAnalyzer(file)
-    #os.remove(file)
+    os.remove(file)
     furnaceData[furnaceType].append(furnaceDf)
 
 # creates master dataframe, then chunks data using the chunkDfJson function
