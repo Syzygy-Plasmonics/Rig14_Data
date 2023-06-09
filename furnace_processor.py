@@ -109,7 +109,7 @@ def furnaceFileAnalyzer(fileName:str):
             furnaceTemps = ['TC0_1_C1', 'TC1_1_C2','TC3_1_C4', 'TC4_1_C5']
 
         # Rig A or B
-        elif "Rig-14" in lines[0] or "Rig-14AB" in lines[0]:
+        elif "Rig-14" in lines[0] or "Rig14-AB" in lines[0]:
             if "Rig 14A" in lines[12]:
                 furnaceDf = createDataframe(fileName,"A",lines)
                 furnaceType="Furnace 14A"
