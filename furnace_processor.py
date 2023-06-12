@@ -144,6 +144,7 @@ def furnaceFileAnalyzer(fileName:str):
         if 'HeaterSetpoint' in furnaceDf.columns:
             furnaceDf['HeaterSetpoint_diff']=furnaceDf['HeaterSetpoint'].diff()
             furnaceDf['Step'] = furnaceDf[['GasSelection','HeaterSetpoint_diff','Catalyst_bed_avg']].apply(lambda x: determineStep(*x), axis=1)
+        furnaceDf['Step'] = furnaceDf[['GasSelection','Catalyst_bed_avg']].apply(lambda x: determineStep(*x), axis=1)
 
         return furnaceType, furnaceDf
     except Exception as e:
@@ -185,7 +186,7 @@ if not os.path.exists("furnace_data"):
 # runs through each file, creates dataframe, then deletes file 
 for file in furnaceFiles:
     furnaceType,furnaceDf = furnaceFileAnalyzer(file)
-    os.remove(file)
+    # os.remove(file)
     furnaceData[furnaceType].append(furnaceDf)
 
 # creates master dataframe, then chunks data using the chunkDfJson function
@@ -208,4 +209,4 @@ if len(furnaceData['Furnace 14C']) > 0:
 
 
 # sends json files to event hub after processing raw data
-asyncio.run(send_event_data())
+# asyncio.run(send_event_data())
