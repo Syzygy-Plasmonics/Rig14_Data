@@ -16,7 +16,7 @@ def determineStep(gasSelection:str, catalystBedAvg:float, heaterSetpointDiff=0):
     description: uses the given input to determine the classification of the data
     """
     # classifies experiment step based on values
-    if gasSelection=="Air" and catalystBedAvg>=699 or heaterSetpointDiff==0 : return "Calcination" 
+    if gasSelection=="Air" and (catalystBedAvg>=699 or heaterSetpointDiff==0): return "Calcination" 
     elif gasSelection=='Air' : return "Ramp up"
     if gasSelection=="Hydrogen" : return "Reduction"
     if gasSelection=="Argon" and catalystBedAvg<=50 and heaterSetpointDiff<=0 : return "Completed Ramp down"
@@ -186,11 +186,12 @@ if not os.path.exists("furnace_data"):
 # runs through each file, creates dataframe, then deletes file 
 for file in furnaceFiles:
     furnaceType,furnaceDf = furnaceFileAnalyzer(file)
-    # os.remove(file)
+    os.remove(file)
     furnaceData[furnaceType].append(furnaceDf)
 
 # creates master dataframe, then chunks data using the chunkDfJson function
 if len(furnaceData['Furnace 14A']) > 0:
+    
     masterFurnaceA = pd.concat(furnaceData['Furnace 14A'],ignore_index=True)
     # masterFurnaceA.to_json("furnace_data/furnaceA.json",mode='w',orient='records')
     chunkDfJson(masterFurnaceA,"furnaceA")
@@ -209,4 +210,4 @@ if len(furnaceData['Furnace 14C']) > 0:
 
 
 # sends json files to event hub after processing raw data
-# asyncio.run(send_event_data())
+asyncio.run(send_event_data())
