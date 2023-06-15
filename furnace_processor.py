@@ -5,7 +5,8 @@ import numpy as np
 from glob import glob
 from upload_blob import *
 
-rootPath = "C:\\temp\\testdownload\\"
+# rootPath = "C:\\temp\\testdownload\\"
+rootPath = "C:\\Users\\jjang\\temp\\testdownload\\"
 
 def determineStep(gasSelection:str, catalystBedAvg:float, heaterSetpointDiff=0):
     """
