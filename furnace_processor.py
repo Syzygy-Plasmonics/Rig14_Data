@@ -255,7 +255,7 @@ async def processData():
         else:
             logF.write(furnaceType+","+furnaceDf+"\n")
         await sendData()
-        # os.remove(file)
+        os.remove(file)
     print("Files all processed!")
     logF.close()
 
@@ -269,6 +269,6 @@ async def main():
     await asyncio.gather(processData(), sendData())
 
 asyncio.run(main())
-print('Event Sents. Process done.')
+print('Events Sent. Process done.')
 
 print(datetime.now()-start)
