@@ -4,9 +4,18 @@ from pandas.api.types import is_numeric_dtype
 import numpy as np
 from glob import glob
 from upload_blob import *
+from dotenv import load_dotenv
+import asyncio
+from azure.eventhub import EventData
+from azure.eventhub.aio import EventHubProducerClient
 
-# rootPath = "C:\\temp\\testdownload\\"
-rootPath = "C:\\Users\\jjang\\temp\\testdownload\\"
+load_dotenv()
+
+# AZURE CONFIG VARIABLES 
+EVENT_HUB_CONNECTION_STR = os.getenv("EVENT_HUB_CONNECTION_STR")
+EVENT_HUB_NAME = os.getenv("EVENT_HUB_NAME")
+BLOB_STORAGE_CONNECTION_STRING = os.getenv("BLOB_STORAGE_CONNECTION_STRING")
+rootPath = os.getenv("ROOT_PATH")
 
 def determineStep(gasSelection:str, catalystBedAvg:float, heaterSetpointDiff=0):
     """
@@ -154,61 +163,80 @@ def furnaceFileAnalyzer(fileName:str):
         return "error", fileName
 
 
-# chunks dataframe into 1000 line json
-def chunkDfJson(df:pd.DataFrame,fileName:str):
-    """
-    input: df -> a pandas dataframe to chunk
-    output: none
-    description: breaks up dataframes into 1000 line json files and saves due as the data surpasses the given max byte size for events. naming convention: furnaceX_#.json
-    """
-    i=0
-    j=1000
-    while j < len(df)+1000:
-        df[i:j].to_json("furnace_data/{}_{}.json".format(fileName,int(j-1000)/1000),mode="w",orient="records")
-        i=j+1
-        j+=1000
+# a dictionary to keep track of the number of each furnace type data is sent
+furnaceCount = {
+    "Furnace 14A" : 0,
+    "Furnace 14B" : 0,
+    "Furnace 14C" : 0,
+}
 
+# converts dataframe to list of dictionary rows in json-like format and sends to event hub
+async def chunkFiles(df:pd.DataFrame,fileName:str):
+    """
+    input: df -> a dataframe representing the data for each experiment 
+           fileName -> the filename representing the type of furance for logging purposes
+    output: None
+    description: Breaks event data into 1000 lines and uses sendData function to send data to the Eventhub
+    """
+    eventDict = df.to_dict('records')
+    if len(eventDict) >1000:
+        i= 0 
+        j = 1000
+        while j < len(eventDict)+1000:
+            eventJson = df[i:j].to_json(orient='records')
+            parsedJson = json.loads(eventJson)
+            stringJson = json.dumps(parsedJson)
+            await sendData(stringJson,fileName+str(furnaceCount[fileName]))
+            i=j+1
+            j+=1000
+            furnaceCount[fileName]+=1
+    else:
+        eventJson = df.to_json(orient='records')
+        parsedJson = json.loads(eventJson)
+        stringJson = json.dumps(parsedJson)
+        await sendData(stringJson,fileName+str(furnaceCount[fileName]))
+        furnaceCount[fileName]+=1
+
+async def sendData(eventData:str,furnaceName:str):
+    """
+    input: eventData -> the string representing the event body in json format to send
+           furnaceName -> the name of the furnace to classify the data being sent to the eventhub with a number represnting what number file it is; not necessary, for printing and logging purposes
+    output: None
+    description: asyncronously sends batched json data to the Azure Eventhub
+    """
+    producer = EventHubProducerClient.from_connection_string(
+        conn_str=EVENT_HUB_CONNECTION_STR, eventhub_name=EVENT_HUB_NAME
+    )
+    try:
+        async with producer:
+
+            event_data_batch = await producer.create_batch()
+
+            print("sending {} to event hub".format(furnaceName))
+
+            event_data_batch.add(EventData(eventData))
+
+            await producer.send_batch(event_data_batch)
+
+            await producer.close()
+
+            print("{} sent to event hub".format(furnaceName))
+
+    except Exception as e:
+        print(e)
 
 # grabs raw data from directory
 furnaceFiles = glob(rootPath+"*[!zip]")
 
-furnaceData = {
-    "Furnace 14A" : [],
-    "Furnace 14B" : [],
-    "Furnace 14C" : [],
-    "unknown" : [],
-    "error" : []
-}
-
-# makes output folder
-if not os.path.exists("furnace_data"):
-    os.mkdir("furnace_data")
-
-# runs through each file, creates dataframe, then deletes file 
+# runs through each file, creates dataframe, sends chunked data
+logF = open('errorLog.txt','w')
 for file in furnaceFiles:
     furnaceType,furnaceDf = furnaceFileAnalyzer(file)
+    if furnaceType!="unknown" and furnaceType!='error':
+        asyncio.run(chunkFiles(furnaceDf,furnaceType))
+    else:
+        logF.write(furnaceType+","+furnaceDf+"\n")
     os.remove(file)
-    furnaceData[furnaceType].append(furnaceDf)
 
-# creates master dataframe, then chunks data using the chunkDfJson function
-if len(furnaceData['Furnace 14A']) > 0:
-    
-    masterFurnaceA = pd.concat(furnaceData['Furnace 14A'],ignore_index=True)
-    # masterFurnaceA.to_json("furnace_data/furnaceA.json",mode='w',orient='records')
-    chunkDfJson(masterFurnaceA,"furnaceA")
-
-if len(furnaceData['Furnace 14B']) > 0:
-    masterFurnaceB = pd.concat(furnaceData['Furnace 14B'],ignore_index=True)
-    chunkDfJson(masterFurnaceB,"furnaceB")
-    # masterFurnaceB.to_json("furnace_data/furnaceB.json",mode="w",orient='records')
-    # masterFurnaceB.to_csv("furnace_data/furnaceB.csv",mode='w',index=False,header=True)
-
-if len(furnaceData['Furnace 14C']) > 0:
-    masterFurnaceC = pd.concat(furnaceData['Furnace 14C'],ignore_index=True)
-    chunkDfJson(masterFurnaceC,"furnaceC")
-    # masterFurnaceC.to_json("furnace_data/furnaceC.json",mode="w",orient='records')
-    # masterFurnaceC.to_json("furnace_data/furnaceC.json",mode='w',index=False,header=True)
-
-
-# sends json files to event hub after processing raw data
-asyncio.run(send_event_data())
+print('Event Sents. Process done.')
+logF.close()
