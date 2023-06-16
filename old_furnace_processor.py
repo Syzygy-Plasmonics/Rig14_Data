@@ -4,21 +4,12 @@ from pandas.api.types import is_numeric_dtype
 import numpy as np
 from glob import glob
 from upload_blob import *
-from dotenv import load_dotenv
-import asyncio
-from azure.eventhub import EventData
-from azure.eventhub.aio import EventHubProducerClient
 from datetime import datetime
 
 start = datetime.now()
 
-load_dotenv()
-
-# AZURE CONFIG VARIABLES 
-EVENT_HUB_CONNECTION_STR = os.getenv("EVENT_HUB_CONNECTION_STR")
-EVENT_HUB_NAME = os.getenv("EVENT_HUB_NAME")
-BLOB_STORAGE_CONNECTION_STRING = os.getenv("BLOB_STORAGE_CONNECTION_STRING")
-rootPath = os.getenv("ROOT_PATH")
+# rootPath = "C:\\temp\\testdownload\\"
+rootPath = "C:\\Temp\\datauploader\\Rig14\\testdownload\\"
 
 def determineStep(gasSelection:str, catalystBedAvg:float, heaterSetpointDiff=0):
     """
@@ -166,109 +157,64 @@ def furnaceFileAnalyzer(fileName:str):
         return "error", fileName
 
 
-
-furnaceData= []
-
-furnaceCount = {
-    "Furnace 14A":0,
-    "Furnace 14B":0,
-    "Furnace 14C":0
-}
-
-# converts dataframe to list of dictionary rows in json-like format and sends to event hub
-def chunkFiles(df:pd.DataFrame,fileName:str):
+# chunks dataframe into 1000 line json
+def chunkDfJson(df:pd.DataFrame,fileName:str):
     """
-    input: df -> a dataframe representing the data for each experiment 
-           fileName -> the filename representing the type of furance for logging purposes
-    output: None
-    description: Breaks event data into 1000 lines and appends to the file queue
+    input: df -> a pandas dataframe to chunk
+    output: none
+    description: breaks up dataframes into 1000 line json files and saves due as the data surpasses the given max byte size for events. naming convention: furnaceX_#.json
     """
-    eventDict = df.to_dict('records')
-    if len(eventDict) >1000:
-        i= 0 
-        j = 1000
-        while j < len(eventDict)+1000:
-            eventJson = df[i:j].to_json(orient='records')
-            parsedJson = json.loads(eventJson)
-            stringJson = json.dumps(parsedJson)
-            furnaceData.append(((fileName+str((furnaceCount[fileName])),stringJson)))
-            i=j+1
-            j+=1000
-            furnaceCount[fileName]+=1
-    else:
-        eventJson = df.to_json(orient='records')
-        parsedJson = json.loads(eventJson)
-        stringJson = json.dumps(parsedJson)
-        furnaceData.append(((fileName+str(furnaceCount[fileName])),stringJson))
-        furnaceCount[fileName]+=1
+    i=0
+    j=1000
+    while j < len(df)+1000:
+        df[i:j].to_json("furnace_data/{}_{}.json".format(fileName,int(j-1000)/1000),mode="w",orient="records")
+        i=j+1
+        j+=1000
 
-
-async def sendData():
-    """
-    input: None
-    output: None
-    description: asyncronously sends batched json data to the Azure Eventhub
-    """
-    producer = EventHubProducerClient.from_connection_string(
-        conn_str=EVENT_HUB_CONNECTION_STR, eventhub_name=EVENT_HUB_NAME
-    )
-    try:
-        async with producer:
-            while furnaceData:
-                furnaceName, eventData = furnaceData.pop()
-                event_data_batch = await producer.create_batch()
-
-                print("sending {} to event hub".format(furnaceName))
-
-                event_data_batch.add(EventData(eventData))
-
-                await producer.send_batch(event_data_batch)
-
-                print("{} sent to event hub".format(furnaceName))
-            await producer.close()
-    except Exception as e:
-        print(e)  
 
 # grabs raw data from directory
-
-
-
 furnaceFiles = glob(rootPath+"*[!zip]")
-async def processData():
-    """
-    input: None
-    output: None
-    description: for all the raw data files, processes and chunks them as the previous files are asyncronously pushed to event hub
-    """
-    print("Processing raw data...")
-    logF = open('errorLog.txt','w')
-    print("Processing raw data...")
 
-    for file in furnaceFiles:
-        furnaceType,furnaceDf = furnaceFileAnalyzer(file)
+furnaceData = {
+    "Furnace 14A" : [],
+    "Furnace 14B" : [],
+    "Furnace 14C" : [],
+    "unknown" : [],
+    "error" : []
+}
 
-        print("Processing: "+file)
+# makes output folder
+if not os.path.exists("furnace_data"):
+    os.mkdir("furnace_data")
 
-        if furnaceType!="unknown" and furnaceType!='error':
-            chunkFiles(furnaceDf,furnaceType)
+# runs through each file, creates dataframe, then deletes file 
+for file in furnaceFiles:
+    furnaceType,furnaceDf = furnaceFileAnalyzer(file)
+    os.remove(file)
+    furnaceData[furnaceType].append(furnaceDf)
 
-        else:
-            logF.write(furnaceType+","+furnaceDf+"\n")
-        await sendData()
-        # os.remove(file)
-    print("Files all processed!")
-    logF.close()
+# creates master dataframe, then chunks data using the chunkDfJson function
+if len(furnaceData['Furnace 14A']) > 0:
+    
+    masterFurnaceA = pd.concat(furnaceData['Furnace 14A'],ignore_index=True)
+    # masterFurnaceA.to_json("furnace_data/furnaceA.json",mode='w',orient='records')
+    chunkDfJson(masterFurnaceA,"furnaceA")
+
+if len(furnaceData['Furnace 14B']) > 0:
+    masterFurnaceB = pd.concat(furnaceData['Furnace 14B'],ignore_index=True)
+    chunkDfJson(masterFurnaceB,"furnaceB")
+    # masterFurnaceB.to_json("furnace_data/furnaceB.json",mode="w",orient='records')
+    # masterFurnaceB.to_csv("furnace_data/furnaceB.csv",mode='w',index=False,header=True)
+
+if len(furnaceData['Furnace 14C']) > 0:
+    masterFurnaceC = pd.concat(furnaceData['Furnace 14C'],ignore_index=True)
+    chunkDfJson(masterFurnaceC,"furnaceC")
+    # masterFurnaceC.to_json("furnace_data/furnaceC.json",mode="w",orient='records')
+    # masterFurnaceC.to_json("furnace_data/furnaceC.json",mode='w',index=False,header=True)
 
 
-async def main():
-    """
-    input: None
-    output: None
-    description: main function to run both process and send data
-    """
-    await asyncio.gather(processData(), sendData())
+# sends json files to event hub after processing raw data
+asyncio.run(send_event_data())
 
-asyncio.run(main())
-print('Event Sents. Process done.')
 
 print(datetime.now()-start)
