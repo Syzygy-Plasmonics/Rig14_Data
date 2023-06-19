@@ -166,16 +166,13 @@ def furnaceFileAnalyzer(fileName:str):
         return "error", fileName
 
 
-
-furnaceData= []
-
+# to track the number of the event sent
 furnaceCount = {
     "Furnace 14A":0,
     "Furnace 14B":0,
     "Furnace 14C":0
 }
 
-# converts dataframe to list of dictionary rows in json-like format and sends to event hub
 def chunkFiles(df:pd.DataFrame,fileName:str):
     """
     input: df -> a dataframe representing the data for each experiment 
@@ -184,6 +181,7 @@ def chunkFiles(df:pd.DataFrame,fileName:str):
     description: Breaks event data into 1000 lines and appends to the file queue
     """
     eventDict = df.to_dict('records')
+    temp = []
     if len(eventDict) >1000:
         i= 0 
         j = 1000
@@ -191,7 +189,7 @@ def chunkFiles(df:pd.DataFrame,fileName:str):
             eventJson = df[i:j].to_json(orient='records')
             parsedJson = json.loads(eventJson)
             stringJson = json.dumps(parsedJson)
-            furnaceData.append(((fileName+str((furnaceCount[fileName])),stringJson)))
+            temp.append(((fileName+str((furnaceCount[fileName])),stringJson)))
             i=j+1
             j+=1000
             furnaceCount[fileName]+=1
@@ -199,76 +197,74 @@ def chunkFiles(df:pd.DataFrame,fileName:str):
         eventJson = df.to_json(orient='records')
         parsedJson = json.loads(eventJson)
         stringJson = json.dumps(parsedJson)
-        furnaceData.append(((fileName+str(furnaceCount[fileName])),stringJson))
         furnaceCount[fileName]+=1
+        temp.append(((fileName+str((furnaceCount[fileName])),stringJson)))
+    return temp
 
-
-async def sendData():
-    """
-    input: None
-    output: None
-    description: asyncronously sends batched json data to the Azure Eventhub
-    """
-    producer = EventHubProducerClient.from_connection_string(
-        conn_str=EVENT_HUB_CONNECTION_STR, eventhub_name=EVENT_HUB_NAME
-    )
-    try:
-        async with producer:
-            while furnaceData:
-                furnaceName, eventData = furnaceData.pop()
-                event_data_batch = await producer.create_batch()
-
-                print("sending {} to event hub".format(furnaceName))
-
-                event_data_batch.add(EventData(eventData))
-
-                await producer.send_batch(event_data_batch)
-
-                print("{} sent to event hub".format(furnaceName))
-            await producer.close()
-    except Exception as e:
-        print(e)  
 
 # grabs raw data from directory
-
-
-
 furnaceFiles = glob(rootPath+"*[!zip]")
-async def processData():
-    """
-    input: None
-    output: None
-    description: for all the raw data files, processes and chunks them as the previous files are asyncronously pushed to event hub
-    """
-    print("Processing raw data...")
-    logF = open('errorLog.txt','w')
-    print("Processing raw data...")
 
-    for file in furnaceFiles:
-        furnaceType,furnaceDf = furnaceFileAnalyzer(file)
-
-        print("Processing: "+file)
-
-        if furnaceType!="unknown" and furnaceType!='error':
-            chunkFiles(furnaceDf,furnaceType)
-
-        else:
-            logF.write(furnaceType+","+furnaceDf+"\n")
-        await sendData()
-        os.remove(file)
-    print("Files all processed!")
-    logF.close()
-
-
-async def main():
+def main():
     """
     input: None
     output: None
     description: main function to run both process and send data
     """
-    await asyncio.gather(processData(), sendData())
 
-asyncio.run(main())
+    logF = open('errorLog.txt','w')
+
+    # nested function to process and upload files
+    async def processAndUpload(file):
+        """
+        input: file -> a string representing the name of the file to process and upload
+        output: None
+        description: processes the file into a dataframe and either classifies as an error or unknown, or chunks and adds to the eventhub
+        """
+        furnaceType,furnaceDf = furnaceFileAnalyzer(file)
+
+        print("Processing: "+file)
+
+        if furnaceType!="unknown" and furnaceType!='error':
+            data = chunkFiles(furnaceDf,furnaceType)
+            producer = EventHubProducerClient.from_connection_string(
+            conn_str=EVENT_HUB_CONNECTION_STR, eventhub_name=EVENT_HUB_NAME
+            )
+        
+            try:
+                # adding to the eventhub
+                async with producer:
+                    for d in data:
+                        fName, fData = d
+                        event_data_batch = await producer.create_batch()
+
+                        print("sending {} to event hub".format(fName))
+
+                        event_data_batch.add(EventData(fData))
+
+                        await producer.send_batch(event_data_batch)
+
+                        print("{} sent to event hub".format(fName))
+                    await producer.close()
+
+            except Exception as e:
+                print(e)
+
+        else:
+            logF.write(furnaceType+","+furnaceDf+"\n")
+
+        print("Finished "+file)
+        os.remove(file)
+
+    print("Processing raw data...")
+    # adds processing and uploading data files as distinct async tasks
+    loop = asyncio.get_event_loop()
+    tasks = [loop.create_task(processAndUpload(file)) for file in furnaceFiles]
+    loop.run_until_complete(asyncio.wait(tasks))
+    loop.close()
+
+main()
 print('Events Sent. Process done.')
 
+# to track runtime
 print(datetime.now()-start)
