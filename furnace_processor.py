@@ -20,7 +20,7 @@ EVENT_HUB_NAME = os.getenv("EVENT_HUB_NAME")
 BLOB_STORAGE_CONNECTION_STRING = os.getenv("BLOB_STORAGE_CONNECTION_STRING")
 rootPath = os.getenv("ROOT_PATH")
 
-def determineStep(gasSelection:str, catalystBedAvg:float, heaterSetpointDiff=0):
+def determineStep(gasSelection:str, catalystBedAvg:float, heaterSetpointDiff=None):
     """
     input: gasSelection -> a string of the gas selection that was in the raw data
            catalystBedAvg -> a float of the catalyst bed average 
@@ -29,11 +29,26 @@ def determineStep(gasSelection:str, catalystBedAvg:float, heaterSetpointDiff=0):
     description: uses the given input to determine the classification of the data
     """
     # classifies experiment step based on values
-    if gasSelection=="Air" and (catalystBedAvg>=699 or heaterSetpointDiff==0): return "Calcination" 
-    elif gasSelection=='Air' : return "Ramp up"
+    if gasSelection=='Air':
+        if heaterSetpointDiff!=None:
+            if heaterSetpointDiff==0: return "Calcination"
+            else: return "Ramp up"
+        else:
+            if catalystBedAvg>=699:
+                return "Calcination" 
+            else: 
+                return "Ramp up"
     if gasSelection=="Hydrogen" : return "Reduction"
-    if gasSelection=="Argon" and catalystBedAvg<=50 and heaterSetpointDiff<=0 : return "Completed Ramp down"
-    elif gasSelection=="Argon": return "Ramp down"
+    if gasSelection=='Argon':
+        if heaterSetpointDiff!=None:
+            if heaterSetpointDiff<=0 and catalystBedAvg<=50:
+                return "Completed Ramp down"
+            elif heaterSetpointDiff<=0:
+                return "Ramp down"
+            else:
+                return "Uncategorized"
+        else:
+            return "Ramp down"
     if gasSelection=="Helium" : return "Leak Test"
     return "Uncategorized"
 
