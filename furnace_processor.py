@@ -171,7 +171,7 @@ def furnaceFileAnalyzer(fileName:str):
 
         if 'HeaterSetpoint' in furnaceDf.columns:
             furnaceDf['HeaterSetpoint_diff']=furnaceDf['HeaterSetpoint'].diff()
-            furnaceDf['Step'] = furnaceDf[['GasSelection','HeaterSetpoint_diff','Catalyst_bed_avg']].apply(lambda x: determineStep(*x), axis=1)
+            furnaceDf['Step'] = furnaceDf[['GasSelection','Catalyst_bed_avg','HeaterSetpoint_diff']].apply(lambda x: determineStep(*x), axis=1)
         furnaceDf['Step'] = furnaceDf[['GasSelection','Catalyst_bed_avg']].apply(lambda x: determineStep(*x), axis=1)
 
         return furnaceType, furnaceDf

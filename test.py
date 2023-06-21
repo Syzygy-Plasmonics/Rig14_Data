@@ -6,6 +6,7 @@ def determineStep(gasSelection:str, catalystBedAvg:float, heaterSetpointDiff=Non
     output: a string categorizing the stage of which the reactor is in at that date-time
     description: uses the given input to determine the classification of the data
     """
+    print(heaterSetpointDiff)
     # classifies experiment step based on values
     if gasSelection=='Air':
         if heaterSetpointDiff!=None:
@@ -63,6 +64,7 @@ def step_determiner(GasSelection,Catalyst_bed_avg):
 
 def step_determiner_setpoint(GasSelection,HeaterSetpoint_diff,Catalyst_bed_avg):
     """ Helper function that creates a step value based on the GasSelection column or the difference of the previous heater setpoint"""
+    print(HeaterSetpoint_diff)
     
     #if gas selection is air and the heater setpoint is at 0.0 is considered to be Calcination
     if (GasSelection == 'Air') & (HeaterSetpoint_diff == 0.0):
@@ -96,7 +98,7 @@ def step_determiner_setpoint(GasSelection,HeaterSetpoint_diff,Catalyst_bed_avg):
     return step
 
 
-test1=  ("Air",0,0)
+test1=  ("Air",7,0)
 test2 = []
 print(determineStep(test1[0],test1[1],test1[2]))
 print(step_determiner(test1[0],test1[1]))
