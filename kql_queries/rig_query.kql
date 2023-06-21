@@ -1,0 +1,49 @@
+// a master query that compiles all summary information for furnace type and step, has null values if not appropriate values
+// filters for only distinct datetime values first
+let distinct_datetime = 
+    master_table
+        |distinct Dateandtime,Catalyst_bed_avg,max_temp,MFC1_MCCM,MFC1_PSIA,MFC2_MCCM,MFC2_PSIA,MFC3_MCCM,MFC3_PSIA,Comment,ExhaustFlowRate_ft_min_,experiment,Step,furnace_type,HeaterVoltage
+    ;
+distinct_datetime
+// include specifier of experiment/furnace_type before as needed
+|summarize Step_Count =count(), 
+Catalyst_Bed_Avg_Mean = round(avg(Catalyst_bed_avg),2),
+Catalyst_Bed_Avg_Max = round(max(Catalyst_bed_avg),2),
+Max_Temp_Max = max(max_temp),
+Max_Temp_Min = min(max_temp),
+MFC1_MCCM_Mean = round(avg(MFC1_MCCM),2),
+MFC1_MCCM_STD = round(stdev(MFC1_MCCM),2),
+MFC1_PSIA_Mean = round(avg(MFC1_PSIA),2),
+MFC1_PSIA_STD = round(stdev(MFC1_PSIA),2),
+MFC2_MCCM_Mean = round(avg(MFC2_MCCM),2),
+MFC2_MCCM_STD = round(stdev(MFC2_MCCM),2),
+MFC2_PSIA_Mean = round(avg(MFC2_PSIA),2),
+MFC2_PSIA_STD = round(stdev(MFC2_PSIA),2),
+MFC3_MCCM_Mean = round(avg(MFC3_MCCM),2),
+MFC3_MCCM_STD = round(stdev(MFC3_MCCM),2),
+MFC3_PSIA_Mean = round(avg(MFC3_PSIA),2),
+MFC3_PSIA_STD = round(stdev(MFC3_PSIA),2),
+Comments = strcat_array(make_list(Comment),""),
+ExhaustFlowRate_Mean = round(avg(ExhaustFlowRate_ft_min_),2),
+HeaterVoltage_Mean = round(avg(HeaterVoltage),2)
+by experiment, Step, furnace_type
+|extend Time_Hours = round(todouble(Step_Count*5)/3600,2)
+|where Step =="Calcination" or Step=="Reduction"
+|join kind=inner
+(master_table
+    |summarize arg_min(todatetime(Dateandtime),experiment) by experiment
+) on experiment
+|project-away experiment1, experiment2
+//removes 0 values where not appropriate and filters to NaN
+| extend MFC1_PSIA_Mean =  iff(furnace_type!='Furnace 14A' and (MFC1_PSIA_Mean==0 or isempty(MFC1_PSIA_Mean)),double(null),MFC1_PSIA_Mean)
+| extend MFC2_PSIA_Mean = iff(furnace_type!='Furnace 14B' and (MFC2_PSIA_Mean==0 or isempty(MFC2_PSIA_Mean)),double(null),MFC2_PSIA_Mean)
+| extend MFC3_PSIA_Mean = iff(furnace_type!='Furnace 14C' and (MFC3_PSIA_Mean==0 or isempty(MFC3_PSIA_Mean)),double(null),MFC3_PSIA_Mean)
+| extend MFC1_PSIA_STD =  iff(furnace_type!='Furnace 14A' and (MFC1_PSIA_STD==0 or isempty(MFC1_PSIA_STD)),double(null),MFC1_PSIA_STD)
+| extend MFC2_PSIA_STD = iff(furnace_type!='Furnace 14B' and (MFC2_PSIA_STD==0 or isempty(MFC2_PSIA_STD)),double(null),MFC2_PSIA_STD)
+| extend MFC3_PSIA_STD = iff(furnace_type!='Furnace 14C' and (MFC3_PSIA_STD==0 or isempty(MFC3_PSIA_STD)),double(null),MFC3_PSIA_STD)
+| extend MFC1_MCCM_Mean =  iff(furnace_type!='Furnace 14A' and (MFC1_MCCM_Mean==0 or isempty(MFC1_MCCM_Mean)),double(null),MFC1_MCCM_Mean)
+| extend MFC2_MCCM_Mean = iff(furnace_type!='Furnace 14B' and (MFC2_MCCM_Mean==0 or isempty(MFC2_MCCM_Mean)),double(null),MFC2_MCCM_Mean)
+| extend MFC3_MCCM_Mean = iff(furnace_type!='Furnace 14C' and (MFC3_MCCM_Mean==0 or isempty(MFC3_MCCM_Mean)),double(null),MFC3_MCCM_Mean)
+| extend MFC1_MCCM_STD =  iff(furnace_type!='Furnace 14A' and (MFC1_MCCM_STD==0 or isempty(MFC1_MCCM_STD)),double(null),MFC1_MCCM_STD)
+| extend MFC2_MCCM_STD = iff(furnace_type!='Furnace 14B' and (MFC2_MCCM_STD==0 or isempty(MFC2_MCCM_STD)),double(null),MFC2_MCCM_STD)
+| extend MFC3_MCCM_STD = iff(furnace_type!='Furnace 14C' and (MFC3_MCCM_STD==0 or isempty(MFC3_MCCM_STD)),double(null),MFC3_MCCM_STD)

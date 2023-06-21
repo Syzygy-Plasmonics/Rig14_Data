@@ -1,0 +1,22 @@
+// retrieves needed columns from past 30 days for furnace C
+master_table
+|where todatetime(Dateandtime) > ago(30d) and furnace_type =='Furnace 14C'
+|extend ZoneTemperature_1 = iff(isempty(ZoneTemperature_1),0/0.0,ZoneTemperature_1)
+|extend ZoneTemperature_2 = iff(isempty(ZoneTemperature_2),0/0.0,ZoneTemperature_2)
+|extend ZoneTemperature_3 = iff(isempty(ZoneTemperature_3),0/0.0,ZoneTemperature_3)
+|summarize by
+todatetime(Dateandtime), 
+Step,
+TC0_1_C1,
+TC1_1_C2,
+TC3_1_C4,
+TC4_1_C5,
+GasSelection,
+max_temp,
+Catalyst_bed_avg,
+MFC3_PSIA,
+MFC3_MCCM,
+ZoneTemperature_1,
+ZoneTemperature_2,
+ZoneTemperature_3,
+experiment

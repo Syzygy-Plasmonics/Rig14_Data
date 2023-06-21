@@ -1,0 +1,17 @@
+// retrieves needed columns from past 30 days for furnace B
+master_table
+|where todatetime(Dateandtime) > ago(30d) and furnace_type =='Furnace 14B'
+|summarize by
+todatetime(Dateandtime), 
+Step,
+['Tc_B-1'],
+['Tc_B-2'],
+['Tc_B-4'],
+['Tc_B-5'],
+GasSelection,
+max_temp,
+Catalyst_bed_avg,
+MFC2_PSIA,
+MFC2_MCCM,
+experiment,
+HeaterVoltage

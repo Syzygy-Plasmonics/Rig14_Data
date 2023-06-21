@@ -113,7 +113,6 @@ def createDataframe(fileName:str,furnaceLetter:str,lines:list):
         return pd.DataFrame
 
 
-
 def furnaceFileAnalyzer(fileName:str):
     """
     input: fileName -> a string representing the filename to convert to a dataframe, should be passed with absolute path
@@ -181,7 +180,6 @@ def furnaceFileAnalyzer(fileName:str):
         return "error", fileName
 
 
-
 furnaceData= []
 
 furnaceCount = {
@@ -245,9 +243,6 @@ async def sendData():
         print(e)  
 
 # grabs raw data from directory
-
-
-
 furnaceFiles = glob(rootPath+"*[!zip]")
 async def processData():
     """
