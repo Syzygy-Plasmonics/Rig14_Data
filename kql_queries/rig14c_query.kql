@@ -1,6 +1,5 @@
-// retrieves needed columns from past 30 days for furnace C
+// retrieves needed columns for furnace C
 master_table
-|where todatetime(Dateandtime) > ago(30d) and furnace_type =='Furnace 14C'
 |extend ZoneTemperature_1 = iff(isempty(ZoneTemperature_1),0/0.0,ZoneTemperature_1)
 |extend ZoneTemperature_2 = iff(isempty(ZoneTemperature_2),0/0.0,ZoneTemperature_2)
 |extend ZoneTemperature_3 = iff(isempty(ZoneTemperature_3),0/0.0,ZoneTemperature_3)

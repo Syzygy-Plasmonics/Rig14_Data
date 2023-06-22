@@ -1,6 +1,5 @@
-// retrieves data for experiments ran in the past 30 days, replaces empty values with NaN
+// retrieves data for experiments and replaces empty values with NaN
 master_table
-|where todatetime(Dateandtime) > ago(30d)
 |summarize by Step,todatetime(Dateandtime),Catalyst_bed_avg,max_temp,MFC1_MCCM,MFC1_PSIA,MFC2_MCCM,MFC2_PSIA,MFC3_MCCM,MFC3_PSIA,Comment,ExhaustFlowRate_ft_min_,experiment,furnace_type,HeaterVoltage
 |extend MFC1_MCCM = iff(furnace_type !='Furnace 14A' and (MFC1_MCCM==0 or isempty(MFC1_MCCM)),0/0.0,MFC1_MCCM)
 |extend MFC2_MCCM = iff(furnace_type !='Furnace 14B' and (MFC2_MCCM==0 or isempty(MFC2_MCCM)),0/0.0,MFC2_MCCM)
@@ -9,3 +8,4 @@ master_table
 |extend MFC2_PSIA = iff(furnace_type !='Furnace 14B' and (MFC2_PSIA==0 or isempty(MFC2_PSIA)),0/0.0,MFC2_PSIA)
 |extend MFC3_PSIA = iff(furnace_type !='Furnace 14C' and (MFC3_PSIA==0 or isempty(MFC3_PSIA)),0/0.0,MFC3_PSIA)
 |distinct Dateandtime,Catalyst_bed_avg,max_temp,MFC1_MCCM,MFC1_PSIA,MFC2_MCCM,MFC2_PSIA,MFC3_MCCM,MFC3_PSIA,Comment,ExhaustFlowRate_ft_min_,experiment,Step,furnace_type,HeaterVoltage
+|where experiment =="129.115.4 EXTRUDATE 37 CAL C RED C-2"

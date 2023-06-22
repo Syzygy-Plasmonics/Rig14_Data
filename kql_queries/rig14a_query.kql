@@ -1,6 +1,5 @@
-// retrieves needed columns from past 30 days for furnace A
+// retrieves needed columns for furnace A
 master_table
-|where todatetime(Dateandtime) > ago(30d) and furnace_type =='Furnace 14A'
 |summarize by
 todatetime(Dateandtime), 
 Step,
